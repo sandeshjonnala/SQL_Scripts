@@ -1,0 +1,11 @@
+To Check
+select @@servername
+
+sp_dropserver '<oldinstancename>'
+go
+
+sp_addserver '<newinstancename>', local
+go
+
+To Verify
+select @@servername
