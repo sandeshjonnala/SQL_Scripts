@@ -1,0 +1,5 @@
+--ServerName
+USE [master]
+GO
+ALTER DATABASE [tempdb] ADD LOG FILE ( NAME = N'templog2', FILENAME = N'Path\templog2.ldf' , SIZE = 1024MB , FILEGROWTH = 256MB)
+GO 
