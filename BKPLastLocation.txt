@@ -1,0 +1,10 @@
+select
+           bmf.physical_device_name
+     from  msdb.dbo.backupmediafamily bmf
+     where media_set_id = (
+                select
+                        max(bmf.media_set_id)
+                  from  msdb.dbo.backupmediafamily bmf
+                        inner join msdb.dbo.backupset bs
+                          on  bmf.media_set_id = bs.media_set_id
+                  where bmf.physical_device_name like '%<DBNAME>%.bak')

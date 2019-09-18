@@ -1,0 +1,20 @@
+use MSDB
+go
+
+SELECT
+bs.[database_name]
+,bs.[backup_start_date]
+,bs.[type]
+,bs.[server_name]
+,bmf.physical_device_name
+
+FROM [msdb].[dbo].[backupset] bs inner join [msdb].[dbo].[backupmediafamily] bmf
+on bs.media_set_id = bmf.media_set_id
+where
+bs.[database_name] = '<DBNAME>' 
+and 
+bs.[type] = '<type like D / I / L>' 
+--D is Full Bakup
+--I is Diff Bakup
+--L is LOg Bakup
+order by backup_start_date desc
