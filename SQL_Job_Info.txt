@@ -1,0 +1,11 @@
+-- list of jobs with names with status of job and job steps with retry attempts and retry intervals
+-- showing job names has the words like bkp, backup, dba, full, diff, log, bkup
+
+SELECT 
+name as Job_Name, enabled, sysjobsteps.step_name, sysjobsteps.step_id, sysjobsteps.retry_attempts, sysjobsteps.retry_interval
+
+FROM msdb.dbo.sysjobs
+INNER JOIN msdb.dbo.sysjobsteps
+ON sysjobs.job_id = sysjobsteps.job_id
+--ORDER BY sysjobs.job_id,sysjobsteps.step_id
+where name like '%full%' or name like '%bkp%' or name like '%dba%' or name like '%backup%' or name like '%diff%' or name like '%log%' or name like '%bkup%'
