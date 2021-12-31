@@ -3,3 +3,8 @@ SELECT session_id as SPID, command, a.text AS Query, start_time, percent_complet
 FROM sys.dm_exec_requests r CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) a 
 WHERE r.command in ('BACKUP DATABASE','RESTORE DATABASE')
 
+go
+
+SELECT r.status, r.command, r.wait_type, r.percent_complete
+FROM sys.dm_exec_requests r
+WHERE r.command like '%restore%' or r.command like '%backup%'

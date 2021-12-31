@@ -1,0 +1,28 @@
+--to see the advanced options
+EXEC sp_configure 'show advanced options', 1
+RECONFIGURE
+GO
+
+-- enabling the xp_cmdshell
+EXEC sp_configure 'xp_cmdshell', 1
+RECONFIGURE
+GO
+
+GRANT EXECUTE ON xp_cmdshell TO [Domain\user] --granting the access to teh user to execute
+
+EXEC sp_configure; --to see the existing Configurations
+
+
+
+/*
+xp_cmdshell requires a couple of permissions to enable non-sysadmin users to run it, and even when you think you have enabled it in surface area config, 
+and assigned an account to the ##xp_cmdshell_proxy_account##, you will frequently find you still encounter the following error:
+
+An error occurred during the execution of xp_cmdshell. A call to ‘LogonUserW’ failed with error code: ‘1385’.
+
+In order to fix this you need to open the Local Security Settings on the host machine.
+
+Navigate to Security Settings -> Local Policies -> User Rights Assignment.
+
+Now open “Log on as a batch job” and add the user you assigned to the xp_cmdshell proxy account – and you should find it runs fine now.
+*/

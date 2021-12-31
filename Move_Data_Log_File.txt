@@ -1,0 +1,17 @@
+ALTER DATABASE Database_Name   
+    MODIFY FILE ( NAME = Database_Name_DataFile,   
+                  FILENAME = 'E:\DB_DataFile.mdf');  
+GO
+ 
+ALTER DATABASE Database_Name   
+    MODIFY FILE ( NAME = Database_Name_log,   
+                  FILENAME = 'E:\Database_Name_log.LDF');  
+GO
+
+--New Location
+--E:\NewLocation\DB_DataFile.mdf
+--E:\NewLocation\Database_Name_log.LDF
+
+--Old Location
+--D:\DB_DataFile.mdf
+--D:\Database_Name_log.LDF
