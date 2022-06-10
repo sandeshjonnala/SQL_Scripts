@@ -4,16 +4,18 @@ go
 SELECT
 bs.[database_name]
 ,bs.[backup_start_date]
+,bs.backup_finish_date
 ,bs.[type]
 ,bs.[server_name]
+,bs.name AS backupset_name
 ,bmf.physical_device_name
-
+,bmf.logical_device_name
 FROM [msdb].[dbo].[backupset] bs inner join [msdb].[dbo].[backupmediafamily] bmf
 on bs.media_set_id = bmf.media_set_id
 where
-bs.[database_name] = '<DBNAME>' 
+bs.[database_name] = 'DBNAME' 
 and 
-bs.[type] = '<type like D / I / L>' 
+bs.[type] = 'D' 
 --D is Full Bakup
 --I is Diff Bakup
 --L is LOg Bakup
