@@ -2,7 +2,6 @@
 ===================================
 Performance Analysis v2_6.sql
 Purpose: To verify configuration settings and best practices
-Assembled by: Sunshine Rodriguez
 Version: 2.6
 Orig Created: 12/20/2014
 Last Modified: 11/16/2020
@@ -1652,9 +1651,9 @@ ELSE
 	end
 
 /*
-•	To check exclusions – default exclusions already in place. Engine, SSRS, SSAS and FT not excluded so extra exclusions will be needed if they use more than the engine.
+Â•	To check exclusions Â– default exclusions already in place. Engine, SSRS, SSAS and FT not excluded so extra exclusions will be needed if they use more than the engine.
 	o	Bring up Sophos Endpoint Security and Control > Configure anti-virus and HIPS > On-demand extensions and exclusions > Exclusions tab
-•	To check SQL Server Process Memory Space
+Â•	To check SQL Server Process Memory Space
 	o	 Select * from sys.dm_os_loaded_modules where (name like '%SOPHOS_DETOURED.DLL' or name like  '%SOPHOS_DETOURED_x64.DLL' or name like  '%SWI_IFSLSP_64.dll')
 	       CHANGED TO Select 'SOPHOS CHECK', * from sys.dm_os_loaded_modules where (name like '%SOPHOS%.DLL' or name like  '%SWI_IFSLSP_64.dll')   -- SGR 1/18/2020
 	o	Any records returned indicates that Sophos DLLs are loaded inside SQL Server Memory Process.
@@ -1789,7 +1788,7 @@ print '       Top 3 Wait Stats:'
 WHILE @@FETCH_STATUS = 0
 BEGIN
 	UPDATE [dbo].[#results] SET [Comment] = 'CPU - Execute this script: SELECT scheduler_id, current_tasks_count, runnable_tasks_count FROM sys.dm_os_schedulers WHERE scheduler_id < 255; --If runnable tasks count > zero, CPU issues if double digits for any length of time, extreme CPU concern' WHERE  dbo.[#results].[wait_type] = 'SOS_SCHEDULER_YIELD'
-	UPDATE [dbo].[#results] SET [Comment] = 'SETTINGS OR CODE - Wait stats shows more than 5% of your waits are on CXPackets, you may want to test lower (or non-zero) values of “max degree of parallelism”. Never set value great than # of CPUs' WHERE  dbo.[#results].[wait_type] = 'CXPACKET'
+	UPDATE [dbo].[#results] SET [Comment] = 'SETTINGS OR CODE - Wait stats shows more than 5% of your waits are on CXPackets, you may want to test lower (or non-zero) values of Â“max degree of parallelismÂ”. Never set value great than # of CPUs' WHERE  dbo.[#results].[wait_type] = 'CXPACKET'
 	UPDATE [dbo].[#results] SET [Comment] = 'NETWORK - Occurs on network writes when the task is blocked behind the network' WHERE  dbo.[#results].[wait_type] = 'ASYNC_NETWORK_IO'
 	UPDATE [dbo].[#results] SET [Comment] = 'LOCK - Waiting to acquire a Bulk Update (BU) lock' WHERE  dbo.[#results].[wait_type] = 'LCK_M_BU'
 	UPDATE [dbo].[#results] SET [Comment] = 'LOCK - Waiting to acquire an Intent Shared (IS) lock' WHERE  dbo.[#results].[wait_type] = 'LCK_M_IS'
@@ -2212,7 +2211,7 @@ SELECT 'MOST I/O REQUESTS', DB_NAME(st.dbid) DBName
  order by sum(qs.total_physical_reads + qs.total_logical_reads + qs.total_logical_writes) desc
 
 -----------------------------------------------------------------------------
---SP’s take the longest time to execute
+--SPÂ’s take the longest time to execute
 
 --SELECT 'LONGEST TIME TO EXECUTE'
 SELECT 'LONGEST TIME TO EXECUTE', DB_NAME(st.dbid) DBName
