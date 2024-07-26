@@ -1,0 +1,552 @@
+set nocount on;
+SET ANSI_WARNINGS OFF
+declare @version varchar (4)
+declare @lastSQLRestart datetime
+declare @onlineDBs varchar(5)
+declare @DBsNotOnline varchar(5)
+declare @notFullDBs varchar(5)
+declare @cdcDBs varchar(5)
+declare @dbName varchar(50)
+declare @enterFeat varchar(max)
+declare @TotGBs varchar(10)
+declare @SSISinst NVARCHAR(30)
+DECLARE @fname NVARCHAR(30)
+declare @SSaSinst NVARCHAR(30)
+DECLARE @fname1 NVARCHAR(30)
+declare @SSrSinst NVARCHAR(30)
+DECLARE @fname2 NVARCHAR(30)
+declare @CPU varchar (10)
+declare @uomas varchar(5)
+declare @uomsdb varchar(5)
+declare @uomodel varchar(5)
+declare @sb varchar (5)
+declare @saudit varchar (5)
+declare @scred varchar (5)
+declare @db varchar (5)
+declare @endpoints varchar (5)
+declare @prox varchar (5)
+Declare @enjobs varchar (5)
+declare @tde varchar(5)
+declare @tri varchar(5)
+declare @mp varchar(5)
+declare @ev varchar(5)
+declare @mir varchar(5)
+declare @logship varchar(5)
+declare @loships varchar(5)
+declare @ip varchar(5)
+declare @is varchar(5)
+declare @im varchar(5)
+declare @id varchar(5)
+declare @resgov varchar(5)
+declare @Userconditions varchar(5)
+declare @UserPolicy varchar(5)
+declare @agdb varchar(5)
+declare @servrole varchar(5)
+declare @datasize varchar(10)
+declare @logsize varchar(10)
+
+declare @jobs varchar (3)
+declare @linkedServers varchar (3)
+declare @triggers varchar(3)
+declare @startupProcs varchar(3)
+declare @startupTraceFlags varchar(3)
+declare @dbmailProfile varchar (3)
+declare @dbmailAcct varchar(3)
+declare @agentAlertsCount varchar(3)
+declare @agentOperator varchar(3)
+declare @winLogin varchar (4)
+declare @sqlLogin varchar (4)
+--time zone
+declare @TimeZone nvarchar(50)
+declare @sqlZ nvarchar(max)
+
+declare @globalTFs table (
+	traceFlag varchar(5), 
+	stat bit, 
+	glob bit, 
+	sess bit
+)
+declare @globalTFCount varchar(3)
+
+declare @agentAlerts table (
+	id int,
+	name sysname,
+	event_source nvarchar(100),
+	event_cat_id int,
+	event_id int,
+	message_id int,
+	sev int,
+	enabled tinyint,
+	delay_betwe_responses int,
+	last_occur_date int,
+	last_occur_time int,
+	last_response_date int,
+	last_response_time int,
+	notif_message nvarchar(512),
+	include_evt_description tinyint,
+	database_name nvarchar(200),
+	evt_desc_keyboard nvarchar(100),
+	occur_count int,
+	count_reset_date int,
+	count_reset_time int,
+	job_id uniqueidentifier,
+	job_name nvarchar(max),
+	has_notif int,
+	flags int,
+	perf_condition nvarchar(512),
+	cat_name nvarchar(100),
+	wmi_namesapce nvarchar(max),
+	wmi_query nvarchar(512),
+	type int
+)
+declare @agentAlertCount varchar(3)
+
+declare @agentOp table (
+	id int,
+	name sysname,
+	enabled tinyint,
+	email_address nvarchar(100),
+	last_email_date int,
+	last_email_time int,
+	pager_address nvarchar(100),
+	last_pager_date int,
+	last_pager_time int,
+	weekday_pager_start_time int,
+	weekday_pager_end_time int,
+	saturday_pager_start_time int,
+	saturday_pager_end_time int,
+	sunday_pager_start_time int,
+	sunday_pager_end_time int,
+	pager_days tinyint,
+	netsend_address nvarchar(100),
+	last_netsend_date int,
+	last_netsend_time int,
+	cat_name sysname
+)
+declare @agentOpCount varchar(3)
+
+
+select @version = case 
+				when convert(sysname, SERVERPROPERTY ('productversion')) like '8.%' then '2000'
+				when convert(sysname, SERVERPROPERTY ('productversion')) like '9.%' then '2005'
+				when convert(sysname, SERVERPROPERTY ('productversion')) like '10.0%' then '2008'
+				when convert(sysname, SERVERPROPERTY ('productversion')) like '10.5%' then '2008 R2'
+				when convert(sysname, SERVERPROPERTY ('productversion')) like '11.%' then '2012'
+				when convert(sysname, SERVERPROPERTY ('productversion')) like '12.%' then '2014'
+				when convert(sysname, SERVERPROPERTY ('productversion')) like '13.%' then '2016'
+                when convert(sysname, SERVERPROPERTY ('productversion')) like '14.%' then '2017'
+				when convert(sysname, SERVERPROPERTY ('productversion')) like '15.%' then '2019'
+			end
+
+declare @sql2 nvarchar(max)
+declare @sql3 nvarchar(max)
+declare @MemNum Nvarchar(max)
+if CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)), 4) AS INT) > 10 -- >= 2012
+begin
+    set @sql2 = N'SELECT  @MemNum = cast(physical_memory_kb/1024.0/1024.0 as decimal(15,2))
+    FROM    sys.dm_os_sys_info'
+    set @sql3 = N'select @vmType = virtual_machine_type_desc from sys.dm_os_sys_info'
+end
+ 
+else if CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)), 4) AS INT) = 10 -- 2008 or 2008R2
+begin   
+    set @sql2 = N'SELECT  @MemNum = cast(physical_memory_in_bytes/1024.0/1024.0/1024.0 as decimal (15,2))   
+    FROM    sys.dm_os_sys_info'
+    if convert(sysname, SERVERPROPERTY ('productversion')) like '10.5%'
+        set @sql3 = N'select @vmType = virtual_machine_type_desc from sys.dm_os_sys_info'
+    else
+        set @sql3 = N'SELECT  @vmType = NULL FROM sys.dm_os_sys_info'   
+end
+ 
+else
+begin        -- < 2008 (not able to test)
+    set @sql2 = N'SELECT  @MemNum = NULL FROM sys.dm_os_sys_info'
+    set @sql3 = N'SELECT  @vmType = NULL FROM sys.dm_os_sys_info'
+end
+EXEC sp_executesql @sql2, N'@MemNum NVARCHAR(max) OUTPUT', @MemNum OUTPUT
+
+select @lastSQLRestart = sqlserver_start_time FROM sys.dm_os_sys_info;
+
+select @CPU = i.cpu_count
+from sys.dm_os_sys_info i
+cross join sys.dm_os_schedulers s
+where s.status = 'VISIBLE ONLINE'
+group by i.cpu_count
+
+select @onlineDBs = count(name) from sys.databases where database_id > 4 and state_desc = 'online'
+select @DBsNotOnline = count(name) from sys.databases where database_id > 4 and state_desc <> 'online'
+select @notFullDBs = count (name) from sys.databases where database_id > 4 and recovery_model_desc <> 'full'
+select @cdcDBs = count(name) from sys.databases where is_cdc_enabled = 1
+SELECT @tde = count(*) FROM sys.dm_database_encryption_keys db JOIN sys.certificates cer 
+ON db.encryptor_thumbprint = cer.thumbprint where db.encryption_state =3
+select @TotGBs = convert(decimal(10,2),(sum(size * 8.00) / 1024.00 / 1024.00)) from sys.master_files where database_id > 4
+select @jobs = count(name) from msdb.dbo.sysjobs
+select @linkedServers = count(srvname) FROM sysservers where isremote = 0
+select @triggers = count(name) from sys.server_triggers
+select @startupProcs = count (name) FROM sys.procedures WHERE is_auto_executed = 1
+select @startupTraceFlags = count (*) FROM sys.dm_server_registry AS DSR WHERE DSR.registry_key LIKE N'%MSSQLServer\Parameters' and convert(varchar(7),DSR.value_data) like  '-T%'
+insert into @globalTFs (traceFlag, stat, glob, sess)
+	exec('DBCC tracestatus WITH NO_INFOMSGS')		--not all global trace flags are startup trace flags
+select @globalTFCount = count (*) from @globalTFs where glob = 1
+select @dbmailProfile = count(name) FROM msdb.dbo.sysmail_profile
+select @dbmailAcct = count(name) FROM msdb.dbo.sysmail_account
+insert into @agentAlerts(id, name, event_source, event_cat_id, event_id, message_id, sev, enabled, delay_betwe_responses, last_occur_date, last_occur_time, last_response_date, last_response_time, notif_message, include_evt_description, database_name, evt_desc_keyboard, occur_count, count_reset_date, count_reset_time, job_id, job_name, has_notif, flags, perf_condition, cat_name, wmi_namesapce, wmi_query, type)
+	exec msdb..sp_help_alert
+select @agentAlertCount = count(*) from @agentAlerts
+insert into @agentOp (id, name, enabled, email_address, last_email_date, last_email_time, pager_address, last_pager_date, last_pager_time, weekday_pager_start_time, weekday_pager_end_time, saturday_pager_start_time, saturday_pager_end_time, sunday_pager_start_time, sunday_pager_end_time, pager_days, netsend_address, last_netsend_date, last_netsend_time, cat_name)
+	exec msdb..sp_help_operator
+select @agentOpCount = count(*) from @agentOp
+
+SELECT @mir = count(*) FROM sys.database_mirroring m
+INNER JOIN sys.databases d on
+m.database_id = d.database_id
+WHERE m.mirroring_guid is not null
+
+SELECT @logship = count(*) FROM msdb.dbo.log_shipping_primary_databases
+WHERE primary_database is not null
+
+SELECT @loships = count(*) FROM msdb.dbo.log_shipping_secondary_databases
+WHERE secondary_database is not null
+
+select @agdb =count(*) from  sys.availability_databases_cluster 
+
+SELECT @ip = count(*)
+FROM  sys.databases
+WHERE (is_published =1)
+
+IF OBJECT_ID('tempdb..#db') IS NOT NULL DROP TABLE #db
+SELECT name INTO #db FROM sys.databases WHERE state_desc = 'ONLINE' and name not in (SELECT
+AGDatabases.database_name AS Databasename
+FROM sys.dm_hadr_availability_group_states States
+INNER JOIN master.sys.availability_groups Groups ON States.group_id = Groups.group_id
+INNER JOIN sys.availability_databases_cluster AGDatabases ON Groups.group_id = AGDatabases.group_id
+WHERE primary_replica != @@Servername)
+SELECT @is=count(*) FROM #db WHERE OBJECT_ID(name+'.dbo.MSreplication_objects') IS NOT NULL
+
+
+SELECT @id =count(*)
+FROM  sys.databases
+WHERE (is_distributor =1)
+
+select @mp= count(*) FROM msdb.dbo.sysmaintplan_plans
+select @enjobs  = count(*) from msdb.dbo.sysjobs_view where enabled =1
+select @sb = count(*) FROM sys.databases where is_broker_enabled=1 and db_id(name)>4
+select @saudit = count(*) from sys.server_audits
+select @scred  = count(*) from sys.credentials
+select @db  = count(*) from sys.backup_devices
+select @endpoints  = count(*) from sys.endpoints where endpoint_id>5
+select @prox  = count(*) from msdb.dbo.sysproxies
+Select @tri=count(*) from sys.server_triggers
+SELECT @ev =count(*) FROM sys.server_event_sessions where name not in ('system_health','AlwaysOn_health','telemetry_xevents')
+
+--SQL logins (both enabled and disabled)
+select @sqlLogin = count (name)
+	FROM    sys.server_principals
+	WHERE type = 'S'	--SQL Login
+        AND name not like '##MS_%'
+
+--Windows logins and groups (both enabled and disabled)
+select @winLogin = count(name)
+	FROM    sys.server_principals
+	WHERE   (type = 'U' or type = 'G')	--windows user or windows group
+		AND (name not like '##MS_%' and name not like 'NT Service\%' and name not like 'NT SERVICE\%' and name not like 'NT AUTHORITY\%')
+
+--Time Zone
+set @sqlZ = 'EXEC master.dbo.xp_regread ''HKEY_LOCAL_MACHINE'',
+								''SYSTEM\CurrentControlSet\Control\TimeZoneInformation'',
+								''TimeZoneKeyName'',
+								@TimeZone OUT'
+exec sp_executesql @sqlZ, N'@TimeZone nvarchar(50) OUTPUT', @TimeZone OUTPUT
+
+--SKU Specific Features
+CREATE TABLE #EnterpriseFeatures
+(	EditionSpecificFeatures varchar(50),
+	DatabaseName varchar(255),
+	FeatureName varchar(150)
+);
+
+insert into #EnterpriseFeatures
+	EXEC sp_MSforeachdb 'USE [?]; 
+select ''EditionSpecificFeatures'', ''?'' as DbName,  feature_name from sys.dm_db_persisted_sku_features;'
+
+--CURSOR
+declare @enterFeature varchar(100)
+declare entFeat_cursor cursor
+	for select distinct FeatureName from #EnterpriseFeatures
+
+open entFeat_cursor
+
+fetch next from entFeat_cursor
+	into @enterFeature
+
+	if @@FETCH_STATUS <> 0
+		set @enterFeat = '0'
+	while @@FETCH_STATUS = 0
+	begin
+		SET @enterFeat = COALESCE(@enterFeat + ', ', SPACE(0)) + @enterFeature ;
+		fetch next from entFeat_cursor
+			into @enterFeature
+	end
+close entFeat_cursor
+deallocate entFeat_cursor
+--END CURSOR
+--END SKU Specific Features
+
+--Services installed
+SET @fname = '$($ssisname)'
+If @fname like 'MsDtsServer%'
+set @SSISinst = 'Yes'
+else
+set @SSISinst = 'NO'
+
+
+SET @fname1 = '$($ssasname)'
+If @fname1 like 'MSSQLServerOLAPService%'
+set @SSaSinst = 'Yes'
+else
+set @SSaSinst = 'NO'
+
+
+SET @fname2 = '$($ssrsname)'
+If @fname2 in( 'ReportServer', 'SQLServerReportingServices')
+set @SSrSinst = 'Yes'
+else
+set @SSrSinst = 'NO'
+
+--print @fname2
+--print @fname1
+--print @fname
+
+
+--user objects
+select @uomas = count(*) FROM master.[sys].[objects]  
+WHERE SCHEMA_NAME(schema_id) <> 'sys'  
+AND is_ms_shipped = 0  
+AND parent_object_id NOT IN (
+ SELECT object_id  
+ FROM master.sys.objects  
+ WHERE SCHEMA_NAME(schema_id) = 'sys'  
+        OR is_ms_shipped = 1); 
+
+SELECT @uomsdb =count(*) FROM msdb.[sys].[objects]  
+WHERE SCHEMA_NAME(schema_id) not in( 'sys','MS_PerfDashboard') 
+AND is_ms_shipped = 0  
+AND parent_object_id NOT IN (
+ SELECT object_id  
+ FROM msdb.[sys].[objects]  
+ WHERE SCHEMA_NAME(schema_id) = 'sys'  
+        OR is_ms_shipped = 1); 
+
+SELECT @uomodel =count(*) FROM model.[sys].[objects]  
+WHERE SCHEMA_NAME(schema_id) <> 'sys'  
+AND is_ms_shipped = 0  
+AND parent_object_id NOT IN (
+ SELECT object_id  
+ FROM model.sys.objects  
+ WHERE SCHEMA_NAME(schema_id) = 'sys'  
+        OR is_ms_shipped = 1); 
+
+Select @UserPolicy= count(*) from msdb..syspolicy_policies  where is_system <> 1
+Select @Userconditions= count(*) from msdb..syspolicy_conditions where is_system <> 1
+Select @resgov =count(*) from sys.resource_governor_configuration 
+where is_enabled = 1
+
+SELECT @servrole =count(*) FROM sys.server_principals WHERE type = 'R'  and principal_id >10
+
+declare @tempcount varchar(3)
+SELECT @tempcount= COUNT(*) FROM tempdb.sys.database_files where type_desc='ROWS'
+
+declare @syk varchar(10)
+SELECT @syk =count(*)
+FROM sys.symmetric_keys
+WHERE name like'##MS_DatabaseMasterKey##'
+
+
+declare @asyk varchar(10)
+SELECT @asyk =count(*)
+FROM sys.asymmetric_keys
+WHERE name not like'MS_SQLEnableSystemAssemblyLoadingKey'
+
+
+declare @cert varchar(10)
+SELECT @cert =count(*)
+FROM sys.certificates
+WHERE certificate_id > 257
+
+declare @dlf varchar(100)
+SELECT @dlf =CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS NVARCHAR(128))
+
+declare @ddf varchar(100)
+SELECT @ddf =CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS NVARCHAR(128))
+
+declare @dbsnap varchar (5)
+select @dbsnap  = count(*) FROM sys.databases
+where source_database_id is not null
+
+------------------------------Data file size----------------------------
+IF OBJECT_ID('tempdb..#dbsize') IS NOT NULL DROP TABLE #dbsize
+
+create table #dbsize
+(Dbname varchar(30),dbstatus varchar(20),Recovery_Model varchar(10) default ('NA'), file_Size_MB decimal(20,2)default (0),Space_Used_MB decimal(20,2)default (0),Free_Space_MB decimal(20,2) default (0))
+
+ 
+insert into #dbsize(Dbname,dbstatus,Recovery_Model,file_Size_MB,Space_Used_MB,Free_Space_MB)
+exec sp_msforeachdb
+'use [?];
+  select DB_NAME() AS DbName,
+    CONVERT(varchar(20),DatabasePropertyEx(''?'',''Status'')) , 
+    CONVERT(varchar(20),DatabasePropertyEx(''?'',''Recovery'')), 
+sum(size)/128.0 AS File_Size_MB,
+sum(CAST(FILEPROPERTY(name, ''SpaceUsed'') AS INT))/128.0/1024 as Space_Used_MB,
+SUM( size)/128.0 - sum(CAST(FILEPROPERTY(name,''SpaceUsed'') AS INT))/128.0 AS Free_Space_MB 
+from sys.database_files  where type=0 group by type'
+  
+
+
+-------------------log size--------------------------------------
+IF OBJECT_ID('tempdb..#logsize') IS NOT NULL DROP TABLE #logsize
+create table #logsize
+(Dbname varchar(30), Log_File_Size_MB decimal(20,2)default (0),log_Space_Used_MB decimal(20,2)default (0),log_Free_Space_MB decimal(20,2)default (0))
+
+insert into #logsize(Dbname,Log_File_Size_MB,log_Space_Used_MB,log_Free_Space_MB)
+exec sp_msforeachdb
+'use [?];
+  select DB_NAME() AS DbName,
+sum(size)/128.0 AS Log_File_Size_MB,
+sum(CAST(FILEPROPERTY(name, ''SpaceUsed'') AS INT))/128.0/1024 as log_Space_Used_MB,
+SUM( size)/128.0 - sum(CAST(FILEPROPERTY(name,''SpaceUsed'') AS INT))/128.0 AS log_Free_Space_MB 
+from sys.database_files  where type=1 group by type'
+
+
+select @datasize =sum(Space_Used_MB) from #dbsize  WHERE dbname NOT IN ('model','tempdb','msdb','master')
+select @logsize= sum(log_Space_Used_MB) from #logsize  WHERE dbname NOT IN ('model','tempdb','msdb','master')
+
+
+print '**** SQL INSTANCE DISCOVERY REPORT SUMMARY ****'
+print ''
+print 'DATE COLLECTED = ' + convert(sysname, getdate()) + '  ' + isnull(@TimeZone, '')
+print 'LAST SQL SERVER RESTART = ' + convert(sysname, @lastSQLRestart) + '  ' + isnull(@TimeZone, '')
+print ''
+print '*# SERVER & SERVICES Details #*'
+print '@@ServerName = ' + @@servername
+print 'Machine name = ' + (convert(sysname, SERVERPROPERTY('MACHINENAME')))
+print 'Instance name = ' + isnull((convert(sysname, SERVERPROPERTY('INSTANCENAME'))), '<default>')
+print 'Edition = ' + (convert(sysname, SERVERPROPERTY('edition')))
+print 'Version = ' + (convert(sysname, SERVERPROPERTY('productversion')))
+print 'Version Level = ' + @version + ' ' + (convert(sysname, SERVERPROPERTY('productlevel'))) + ' ' + isnull((convert(sysname, SERVERPROPERTY ('productupdatelevel'))),'')
+print 'Collation = ' + (convert(sysname, SERVERPROPERTY('collation')))
+print 'OS CPUs = ' +  @CPU
+print 'Total Server Memory in GB = ' + isnull(@MemNum, 'N/A')
+print 'is SSRS Installed = ' + @SSrSinst
+print 'is SSAS Installed = ' + @SSaSinst
+print 'is SSIS Installed = ' + @SSISinst
+if(select name from sys.sysdatabases where name='ssisdb') like 'ssisdb'
+print 'SSISDB Catalog Configured = Yes'
+else 
+print 'SSISDB Catalog Configured = NO'
+print ''
+print '*# HA & DR Configured Details #*'
+print 'Is Clustered = ' + (convert(sysname, SERVERPROPERTY('isclustered')))
+print 'Is AlwaysOn Enabled = ' + isnull((convert(sysname, SERVERPROPERTY('IsHadrEnabled'))), 'N/A')
+if(@agdb >0)
+print '   AOAG Configured DBs = '+@agdb
+
+if(SELECT COUNT(*) name
+FROM  sys.databases
+WHERE (is_published | is_subscribed | is_merge_published | is_distributor = 1) and state_desc = 'ONLINE')>0
+print 'Is replication Configured = Yes'
+else 
+print 'Is replication Configured = NO'
+
+if(@ip >0)
+print '   Published DBs = '+@ip
+if(@is >0)
+print '   Subscribed DBs = '+@is
+if(@id >0)
+print '   Distributor Configured = YES'
+
+
+if(SELECT count(*) name 
+FROM sys.database_mirroring m
+INNER JOIN sys.databases d on
+m.database_id = d.database_id
+WHERE m.mirroring_guid is not null)> 0
+    print 'Is Mirroring Configured = Yes
+   Mirror Configured DBs = ' + @mir
+else 
+print 'Is Mirroring Configured  = NO'
+
+if(@logship >0 or @loships >0)
+begin
+    print 'Is Logshipping Configured = Yes'
+	if(@logship >0)
+   print '   Logshipping Primary Configured DBs = ' + @logship
+   if(@loships >0)
+   print '   Logshipping Secondary Configured DBs = ' + @loships
+end
+else 
+print 'Is Logshipping Configured  = NO'
+print ''
+print '*# DATABASE & CONFIGURATION Details #*'
+print 'Default Datafile Location =' + @ddf
+print 'Default Logfile Location =' + @dlf
+print 'TempDB datafiles =' +@tempcount
+print 'User dbs (online) = ' + @onlineDBs
+print 'User dbs (NOT online) = ' + @DBsNotOnline
+print 'User dbs NOT using FULL RECOVERY = ' + @notFullDBs
+print 'Broker_enabled Dbs = ' + @sb
+print 'Database Snapshots = ' + @dbsnap
+if @cdcDBs > 0
+	print 'DBs using CDC = ' + @cdcDBs 
+print 'Edition-specific features in use = ' + @enterFeat 
+if @enterFeat <> '0'
+print 'TDE Enabled Databases = ' + @tde
+if @syk >0
+print 'MS_DatabaseMasterKey = Configured'
+
+if @asyk >0
+print 'asymmetric_keys = ' +@asyk
+
+if @cert >0
+print 'Certificates on Master database = ' +@cert
+print 'Total size in GBs (all user DBs, all states) = ' + @TotGBs
+print 'Total space used in GB for Datafiles (DBs in online state) = ' + @datasize
+print 'Total space used in GB for Logfiles (DBs in online state) = ' + @logsize
+print 'User Objects in Master DB = ' + @uomas
+print 'User Objects in Msdb DB = ' + @uomsdb
+print 'User Objects in Model DB = ' + @uomodel
+print ''
+print '*# AGNET & LOGIN Details #*'
+print 'SQL logins = ' + @sqlLogin
+print 'Windows logins/groups = ' + @winLogin
+print 'Server roles (user created) = '+@servrole
+print 'Total Agent Jobs = ' + @jobs
+print 'Enabled Jobs = ' + @enjobs
+print 'Maintenance Plans = ' + @mp
+print 'Agent Alerts = ' + @agentAlertCount
+print 'Agent Operators = ' + @agentOpCount
+print 'Agent Proxies = ' + @prox
+print ''
+print '*# SERVER OBJECTS & OTHER Details #*'
+print 'Linked Servers = ' + @linkedServers
+print 'Server-side triggers = ' + @triggers
+print 'Startup Procs = ' + @startupProcs
+print 'Global Trace Flags = ' + @globalTFCount
+print 'Startup Trace Flags = ' + @startupTraceFlags
+print 'DBMail Profiles = ' + @dbmailProfile
+print 'DBMail Accts = ' + @dbmailAcct
+print 'Server Audits = ' + @saudit
+print 'Server Credentails = ' + @scred
+print 'Backup Devices = ' + @db
+print 'Endpoints = ' + @endpoints
+print 'Server Triggers = ' + @tri
+print 'Extended Events (user created) = ' + @ev
+if(@resgov >0)
+print 'User Define Resource Governor = Yes'
+else
+print 'User Define Resource Governor = No'
+
+print 'User policies = ' + @UserPolicy
+print 'User conditions = ' + @Userconditions
+print ''
+print '****   END OF THE SUMMARY REPORT   ****'
